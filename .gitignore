@@ -1,0 +1,6 @@
+.terraform
+.terraform.lock.hcl
+.env
+build/
+*.pem
+.DS_Store

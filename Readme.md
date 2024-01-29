@@ -1,0 +1,1 @@
+# Otel Collector for synthetic http ping service

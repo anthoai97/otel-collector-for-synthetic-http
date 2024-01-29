@@ -1,0 +1,62 @@
+receivers:
+  httpcheck:
+    targets:
+      - endpoint: https://extranet-services.example.com/ping
+        method: GET
+      - endpoint: https://services.example.com/ping
+        method: GET
+      - endpoint: https://graphql-proxy.example.com/hotel/GVAPALUX
+        method: GET
+    collection_interval: 60s
+
+exporters:
+  awss3:
+    s3uploader:
+      region: 'eu-central-1'
+      s3_bucket: 'example-reports'
+      s3_prefix: 'external-health-check'
+      s3_partition: 'hour'
+      
+  prometheusremotewrite:
+    endpoint: https://mimir.example.com/api/v1/push
+    auth:
+      authenticator: basicauth/prw
+    resource_to_telemetry_conversion:
+      enabled: true
+    external_labels:
+      service: external-health-check
+      region: eu-center-1
+      environment: prod
+    
+  # debug:
+  #   verbosity: detailed
+
+processors:
+  batch:
+  filter/drop-non-2xx-datapoints:
+    metrics:
+      datapoint:
+        - 'metric.name == "httpcheck.status" and attributes["http.status_class"] != "2xx"'
+  transform/drop-status-class-attribute:
+    metric_statements:
+    - context: datapoint
+      statements:
+      - keep_keys(attributes, ["http.url", "http.status_code", "http.method"]) where metric.name == "httpcheck.status"
+
+extensions:
+  health_check:
+  basicauth/prw:
+    client_auth:
+      username: 
+      password: 
+
+service:
+  extensions: [health_check, basicauth/prw]
+  pipelines:
+    metrics:
+      receivers: [httpcheck]
+      processors:
+      - filter/drop-non-2xx-datapoints
+      - transform/drop-status-class-attribute
+      - batch
+      exporters: [prometheusremotewrite, awss3]
